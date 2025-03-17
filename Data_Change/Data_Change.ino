@@ -7,16 +7,6 @@
 MFRC522 rfid(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
 
-
-
-
-
-
-
-
-
-
-
 void setup() {
     Serial.begin(115200);
     SPI.begin();
