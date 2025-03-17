@@ -57,7 +57,7 @@
         int slot1 = checkParkingSlot(TRIG1, ECHO1);
         int slot2 = checkParkingSlot(TRIG2, ECHO2);
 
-        Serial.print("Slot id: "); Serial.println(slot1 ? "1" : "2");
+        Serial.print("Slot id: "); Serial.println(slot1 ? "1" : slot2 ? "2" : "None");
 
         if (email != "") {
             sendDataToServer(email, slot1, slot2);
