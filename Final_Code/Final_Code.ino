@@ -8,8 +8,7 @@ const char* password = "tk####4502";
 
 const char* mqttServer = "192.168.137.1";
 const int mqttPort = 1883;
-const char* mqttTopic = "parking/data";       // Topic for RFID data (email)
-const char* slotStatusTopic = "slotStatus/update"; // Topic for slot status updates
+const char* mqttTopic = "parking/data";
 
 #define SS_PIN D4
 #define RST_PIN D3
@@ -23,9 +22,6 @@ MFRC522::MIFARE_Key key;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-
-unsigned long lastSlotStatusUpdate = 0;       // Track the last time slot status was sent
-const unsigned long slotStatusInterval = 1000; // Send slot status every 1 second
 
 void setup() {
     Serial.begin(115200);
@@ -47,8 +43,10 @@ void setup() {
     client.setServer(mqttServer, mqttPort);
     connectMQTT();
 
-    pinMode(TRIG1, OUTPUT); pinMode(ECHO1, INPUT);
-    pinMode(TRIG2, OUTPUT); pinMode(ECHO2, INPUT);
+    pinMode(TRIG1, OUTPUT);
+    pinMode(ECHO1, INPUT);
+    pinMode(TRIG2, OUTPUT);
+    pinMode(ECHO2, INPUT);
 }
 
 void loop() {
@@ -57,21 +55,19 @@ void loop() {
     }
     client.loop();
 
-    // Check and send slot status periodically
-    if (millis() - lastSlotStatusUpdate >= slotStatusInterval) {
-        int slot1 = checkParkingSlot(TRIG1, ECHO1);
-        int slot2 = checkParkingSlot(TRIG2, ECHO2);
-        sendSlotStatus(slot1, slot2); // Send slot status to MQTT broker
-        lastSlotStatusUpdate = millis(); // Update the last send time
-    }
-
-    // Handle RFID scanning
     String email = readRFID();
+    int slot1 = checkParkingSlot(TRIG1, ECHO1);
+    int slot2 = checkParkingSlot(TRIG2, ECHO2);
+
+    Serial.print("Slot id: ");
+    Serial.println(slot1 ? "1" : slot2 ? "2" : "None");
+
     if (email != "") {
-        sendEmailData(email); // Send only the email to the MQTT broker
+        sendDataToServer(email, slot1, slot2);
     }
 
-    delay(100); // Small delay to avoid overloading the loop
+    Serial.println("---------------------------");
+    delay(1000);
 }
 
 void connectMQTT() {
@@ -119,7 +115,8 @@ String readRFID() {
 
         email.trim();  // Removes leading/trailing spaces
 
-        Serial.print("Email Read: "); Serial.println(email);
+        Serial.print("Email Read: ");
+        Serial.println(email);
 
         rfid.PICC_HaltA();
         rfid.PCD_StopCrypto1();
@@ -143,41 +140,24 @@ int checkParkingSlot(int trigPin, int echoPin) {
     }
 
     int distance = duration * 0.034 / 2;
-    return (distance < 10); // Return 1 if occupied, 0 if available
+    return (distance < 10);
 }
 
-// Send only the email data (RFID scan)
-void sendEmailData(String email) {
+void sendDataToServer(String email, int slot1, int slot2) {
     String fullEmail = email + "@gmail.com";
     if (client.connected()) {
-        char payload[64];
+        char payload[128];
 
         snprintf(payload, sizeof(payload),
-                "{\"email\":\"%s\"}",
-                fullEmail.c_str());
+                 "{\"email\":\"%s\",\"slot1\":\"%d\",\"slot2\":\"%d\"}",
+                 fullEmail.c_str(),
+                 slot1,
+                 slot2);
 
-        Serial.print("Publishing Email Payload: ");
+        Serial.print("Publishing Payload: ");
         Serial.println(payload);
 
         client.publish(mqttTopic, payload);
-    } else {
-        Serial.println("MQTT connection lost, reconnecting...");
-        connectMQTT();
-    }
-}
-
-// Send only the slot status data
-void sendSlotStatus(int slot1, int slot2) {
-    if (client.connected()) {
-        char payload[64];
-
-        // Send the correct format: {"occupiedSlots": [1, 2]}
-        snprintf(payload, sizeof(payload), "{\"slot1\":%d,\"slot2\":%d}", slot1, slot2);
-
-        Serial.print("Publishing Slot Status: ");
-        Serial.println(payload);
-
-        client.publish(slotStatusTopic, payload);
     } else {
         Serial.println("MQTT connection lost, reconnecting...");
         connectMQTT();
