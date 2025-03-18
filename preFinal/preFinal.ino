@@ -172,10 +172,7 @@ void sendSlotStatus(int slot1, int slot2) {
         char payload[64];
 
         // Send the correct format: {"occupiedSlots": [1, 2]}
-        snprintf(payload, sizeof(payload),
-                "{\"occupiedSlots\":[%d,%d]}",
-                slot1 ? 1 : 0,
-                slot2 ? 2 : 0);
+        snprintf(payload, sizeof(payload), "{\"slot1\":%d,\"slot2\":%d}", slot1, slot2);
 
         Serial.print("Publishing Slot Status: ");
         Serial.println(payload);
